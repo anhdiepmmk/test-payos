@@ -3,21 +3,36 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "npm run db:push",
     "dev": "next dev",
+    "prebuild": "npm run db:push",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:push": "node -e \"require('fs').mkdirSync('data',{recursive:true})\" && drizzle-kit push",
+    "register-webhook": "node --env-file=.env.local scripts/register-webhook.mjs"
   },
   "dependencies": {
+    "@payos/node": "^2.0.5",
+    "@payos/payos-checkout": "^1.0.8",
+    "@tanstack/react-query": "^5.101.0",
+    "axios": "^1.17.0",
+    "better-sqlite3": "^12.10.0",
+    "dayjs": "^1.11.21",
+    "drizzle-orm": "^0.45.2",
     "next": "16.2.9",
+    "pino": "^10.3.1",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "drizzle-kit": "^0.31.10",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "tailwindcss": "^4",
