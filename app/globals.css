@@ -17,3 +17,12 @@ body {
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
+
+/* Tailwind v4 đổi preflight: button mặc định cursor: default (khác v3).
+   Khôi phục con trỏ bàn tay cho mọi nút bấm được; nút disabled giữ con trỏ thường. */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
