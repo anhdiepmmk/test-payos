@@ -185,9 +185,15 @@ const config: PayOSConfig = {
 };
 const { open, exit } = usePayOS(config);
 
+// exit() của lib console.error nếu container/iframe không còn trong DOM
+// → chỉ gọi khi iframe thật sự đang gắn (xem safeExit trong CheckoutModal.tsx)
+function safeExit() {
+  if (document.getElementById(CONTAINER_ID)?.querySelector("iframe")) exit();
+}
+
 useEffect(() => {
-  open();              // chèn iframe vào #payos-embedded-container
-  return () => exit(); // dọn iframe — đồng thời chống StrictMode mount 2 lần
+  open();                  // chèn iframe vào #payos-embedded-container
+  return () => safeExit(); // dọn iframe — đồng thời chống StrictMode mount 2 lần
 }, [checkoutUrl]);
 ```
 
@@ -599,6 +605,7 @@ Mở <http://localhost:3000/admin> (có link "Trang Admin →" ngay trên trang 
 |---|---|
 | Bấm Mua → lỗi "Không tạo được link thanh toán" | Key sai/thiếu trong `.env.local` (nhất là **Checksum Key bị copy thiếu**) → copy lại bằng nút 📋 trên dashboard. Xem message chi tiết trong toast + log pino |
 | QR không hiện (modal trống) | (a) Container iframe thiếu height cố định; (b) cài nhầm package cũ `payos-checkout` thay vì `@payos/payos-checkout` — API khác nhau (`open(true)` vs `embedded: true` + `open()`) |
+| Console error `Element ID:payos-embedded-container not exist` | Gọi `exit()` của lib khi container đã unmount (vd trong cleanup của effect lúc đóng modal). Đã fix bằng `safeExit()` trong `CheckoutModal.tsx` — chỉ gọi `exit()` khi iframe còn gắn trong DOM. Nếu sửa lifecycle modal, giữ nguyên pattern này |
 | Bấm Lưu Webhook Url trên dashboard báo lỗi | App hoặc tunnel **chưa chạy** lúc bấm Lưu (PayOS gửi request kiểm tra ngay và cần 2XX). Chạy `npm run dev` + cloudflared trước; mở URL webhook trên trình duyệt thấy `{ok:true}` rồi hãy Lưu |
 | Thanh toán xong, QR đóng nhưng **gói không kích hoạt** | Webhook không tới server: tunnel chết / Webhook Url cũ (quick tunnel **đổi URL mỗi lần chạy**!) → cập nhật lại ô Webhook Url. Kiểm tra `/admin` webhook log: không có event mới = PayOS không gọi vào được |
 | Modal hiện "PayOS đã ghi nhận… webhook chưa tới" (timeout) | Chính là case trên — đơn vẫn PENDING, sửa tunnel/URL xong webhook tới muộn vẫn kích hoạt |

@@ -19,7 +19,9 @@
  * - `usePayOS` không phải hook thật (tạo instance mới mỗi render) → open/exit không được
  *   đưa vào deps của useEffect (identity đổi mỗi render → vòng lặp vô hạn).
  * - `exit()` trong cleanup của effect: chống StrictMode mount 2 lần (2 iframe chồng nhau)
- *   và dọn iframe khi unmount.
+ *   và dọn iframe khi unmount. Nhưng phải bọc qua safeExit() — gọi exit() khi container
+ *   đã unmount sẽ làm lib console.error "Element ID:... not exist" (Next dev overlay
+ *   hiện thành Issue đỏ).
  * - Đóng modal thủ công KHÔNG hủy đơn (user có thể đã chụp QR, trả tiền sau vẫn hợp lệ);
  *   chỉ bấm "Hủy" bên trong iframe PayOS (onCancel) mới hủy đơn thật.
  */
@@ -84,10 +86,24 @@ export default function CheckoutModal({
   };
   const { open, exit } = usePayOS(config);
 
-  // Chèn iframe sau khi container đã có trong DOM; cleanup gỡ iframe + listener.
+  /**
+   * exit() của lib sẽ console.error nếu container đã unmount ("Element ID:... not exist")
+   * hoặc iframe đã bị lib tự gỡ trước đó ("No iframe to remove") — Next dev overlay biến
+   * các console.error này thành "Issue" đỏ rất nhiễu. Chỉ gọi exit() khi iframe còn thật
+   * sự gắn trong DOM; các trường hợp còn lại lib đã tự dọn iframe + listener rồi.
+   */
+  function safeExit() {
+    const container = document.getElementById(CONTAINER_ID);
+    if (container?.querySelector("iframe")) {
+      exit();
+    }
+  }
+
+  // Chèn iframe sau khi container đã có trong DOM; cleanup gỡ iframe + listener
+  // (đồng thời chống StrictMode mount 2 lần tạo 2 iframe chồng nhau).
   useEffect(() => {
     open();
-    return () => exit();
+    return () => safeExit();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- open/exit đổi identity mỗi render
   }, [checkoutUrl]);
 
@@ -110,12 +126,12 @@ export default function CheckoutModal({
       return;
     }
     if (orderStatus === "EXPIRED" && current === "qr") {
-      exit();
+      safeExit();
       setPhase("expired");
       return;
     }
     if (orderStatus === "CANCELLED" && current === "qr") {
-      exit();
+      safeExit();
       onClose();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- chỉ chạy khi status đổi
@@ -136,7 +152,7 @@ export default function CheckoutModal({
       const left = secondsLeft(expiredAt);
       setRemaining(left);
       if (left <= 0) {
-        exit();
+        safeExit();
         setPhase("expired");
       }
     }, 1_000);
@@ -152,7 +168,7 @@ export default function CheckoutModal({
   }, [phase]);
 
   function handleManualClose() {
-    exit();
+    safeExit();
     onClose();
   }
 
