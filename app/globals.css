@@ -19,7 +19,9 @@ body {
 }
 
 /* Tailwind v4 đổi preflight: button mặc định cursor: default (khác v3).
-   Khôi phục con trỏ bàn tay cho mọi nút bấm được; nút disabled giữ con trỏ thường. */
+   Khôi phục con trỏ bàn tay cho mọi nút bấm được; nút disabled giữ con trỏ thường.
+   (Nếu sửa file này mà không thấy đổi: Turbopack persistent cache có thể giữ CSS cũ
+   khi server boot sau lần sửa — sửa nội dung khi server đang chạy là nhận ngay.) */
 @layer base {
   button:not(:disabled),
   [role="button"]:not(:disabled) {
