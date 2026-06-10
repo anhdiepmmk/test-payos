@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["better-sqlite3", "pino"],
   // Chốt workspace root tại thư mục dự án (máy dev có lockfile lạ ở thư mục cha).
   turbopack: { root: __dirname },
+  // Cho phép mở app DEV qua tunnel (HMR/dev resources là cross-origin với domain tunnel).
+  // Quick tunnel đổi subdomain mỗi lần chạy nên dùng wildcard. Chỉ ảnh hưởng `next dev`.
+  allowedDevOrigins: ["*.trycloudflare.com", "*.ngrok-free.app"],
 };
 
 export default nextConfig;

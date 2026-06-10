@@ -16,6 +16,8 @@ export interface AccountResponse {
 export interface CreatePaymentResponse {
   orderCode: number;
   checkoutUrl: string;
+  /** Đúng NGUYÊN chuỗi returnUrl đã gửi PayOS — phải đưa lại vào RETURN_URL của lib nhúng */
+  returnUrl: string;
   expiredAt: number; // unix giây
 }
 

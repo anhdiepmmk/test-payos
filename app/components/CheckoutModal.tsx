@@ -39,6 +39,12 @@ interface Props {
   planName: string;
   amount: number;
   checkoutUrl: string;
+  /**
+   * Đúng NGUYÊN chuỗi returnUrl server đã gửi PayOS lúc tạo link. Trang embedded
+   * so khớp redirect_uri với chuỗi này CHÍNH XÁC từng ký tự (kể cả dấu "/" cuối) —
+   * tự dựng từ window.location là sai lệch ngay ("Thông tin truyền lên không hợp lệ").
+   */
+  returnUrl: string;
   /** unix giây — trùng expiredAt đã gửi sang PayOS */
   expiredAt: number;
   onPaid: () => void;
@@ -55,6 +61,7 @@ export default function CheckoutModal({
   planName,
   amount,
   checkoutUrl,
+  returnUrl,
   expiredAt,
   onPaid,
   onRecreate,
@@ -69,7 +76,7 @@ export default function CheckoutModal({
   }, [phase]);
 
   const config: PayOSConfig = {
-    RETURN_URL: typeof window !== "undefined" ? window.location.origin : "",
+    RETURN_URL: returnUrl, // PHẢI trùng từng ký tự với returnUrl lúc tạo link (server cấp)
     ELEMENT_ID: CONTAINER_ID,
     CHECKOUT_URL: checkoutUrl,
     embedded: true,

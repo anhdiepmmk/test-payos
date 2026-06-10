@@ -24,6 +24,7 @@ interface PendingCheckout {
   planName: string;
   amount: number;
   checkoutUrl: string;
+  returnUrl: string; // nguyên chuỗi server đã gửi PayOS — bắt buộc cho iframe nhúng
   expiredAt: number;
 }
 
@@ -58,6 +59,7 @@ export default function PlansDashboard() {
         planName: plan.name,
         amount: plan.price,
         checkoutUrl: res.checkoutUrl,
+        returnUrl: res.returnUrl,
         expiredAt: res.expiredAt,
       });
       refreshAccount(); // đơn PENDING mới hiện ngay trong lịch sử
@@ -82,6 +84,8 @@ export default function PlansDashboard() {
       planName: plan?.name ?? order.planId,
       amount: order.amount,
       checkoutUrl: order.checkoutUrl,
+      // Đơn tạo trước khi có cột return_url → fallback (có thể vẫn lệch nếu đổi origin)
+      returnUrl: order.returnUrl ?? `${window.location.origin}/`,
       expiredAt: order.expiredAt,
     });
   }
@@ -136,6 +140,7 @@ export default function PlansDashboard() {
           planName={pending.planName}
           amount={pending.amount}
           checkoutUrl={pending.checkoutUrl}
+          returnUrl={pending.returnUrl}
           expiredAt={pending.expiredAt}
           onPaid={() => {
             refreshAccount();

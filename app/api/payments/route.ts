@@ -20,11 +20,14 @@ function generateOrderCode(): number {
 }
 
 /**
- * returnUrl/cancelUrl PHẢI cùng origin với trang đang nhúng iframe:
- * trang embedded của PayOS đối chiếu `redirect_uri` (lib lấy window.location.origin)
- * với returnUrl của payment link — lệch origin (vd env ghi :3000 nhưng dev chạy :3002)
- * là QR báo "Thông tin truyền lên không hợp lệ". Vì vậy ưu tiên header Origin của
- * chính request trình duyệt; env chỉ là fallback cho caller không phải trình duyệt.
+ * Trang embedded của PayOS so khớp `redirect_uri` (lib gửi lên) với `returnUrl`
+ * của payment link theo kiểu SO SÁNH CHUỖI CHÍNH XÁC — kể cả dấu "/" cuối; lệch là
+ * iframe báo "Thông tin truyền lên không hợp lệ" thay vì hiện QR (đã kiểm chứng
+ * thực nghiệm, xem README mục Troubleshooting). Vì vậy:
+ *  1. Origin lấy từ header Origin của CHÍNH request trình duyệt (chạy port/tunnel
+ *     nào cũng tự khớp); env chỉ là fallback cho caller không phải trình duyệt.
+ *  2. returnUrl được trả về cho client + lưu vào đơn — client đưa NGUYÊN chuỗi này
+ *     vào RETURN_URL của lib, không tự dựng lại.
  */
 function requestOrigin(req: Request): string {
   return (
@@ -55,15 +58,15 @@ export async function POST(req: Request) {
 
   const orderCode = generateOrderCode();
   const expiredAt = expiryUnix(15); // PayOS yêu cầu unix GIÂY (Int32) — QR sống 15 phút
-  const base = requestOrigin(req);
+  const returnUrl = `${requestOrigin(req)}/`;
 
   try {
     const link = await payos.paymentRequests.create({
       orderCode,
       amount: plan.price,
       description: plan.description, // memo chuyển khoản — PayOS giới hạn 9 ký tự
-      returnUrl: `${base}/`, // bắt buộc kể cả khi nhúng embedded
-      cancelUrl: `${base}/`,
+      returnUrl, // bắt buộc kể cả khi nhúng embedded; client sẽ dùng LẠI nguyên chuỗi này
+      cancelUrl: returnUrl,
       expiredAt,
     });
 
@@ -74,6 +77,7 @@ export async function POST(req: Request) {
       amount: plan.price,
       description: plan.description,
       checkoutUrl: link.checkoutUrl,
+      returnUrl,
       expiredAt,
       status: "PENDING",
       createdAt: nowIso(),
@@ -83,7 +87,12 @@ export async function POST(req: Request) {
       { orderCode, planId: plan.id, amount: plan.price, userId },
       "payment link created",
     );
-    return Response.json({ orderCode, checkoutUrl: link.checkoutUrl, expiredAt });
+    return Response.json({
+      orderCode,
+      checkoutUrl: link.checkoutUrl,
+      returnUrl,
+      expiredAt,
+    });
   } catch (err) {
     logger.error({ err, orderCode, planId: plan.id }, "create payment link failed");
     const message = err instanceof Error ? err.message : "Lỗi không xác định";

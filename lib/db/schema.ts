@@ -22,6 +22,9 @@ export const orders = sqliteTable("orders", {
   amount: integer("amount").notNull(),
   description: text("description").notNull(),
   checkoutUrl: text("checkout_url").notNull(), // lưu lại để "Tiếp tục thanh toán"
+  // returnUrl ĐÚNG NHƯ đã gửi PayOS lúc tạo link — trang embedded so khớp CHÍNH XÁC
+  // redirect_uri với chuỗi này (kể cả dấu "/" cuối), lệch 1 ký tự là không hiện QR.
+  returnUrl: text("return_url"),
   expiredAt: integer("expired_at").notNull(), // unix giây
   status: text("status").$type<OrderStatus>().notNull(),
   createdAt: text("created_at").notNull(),
