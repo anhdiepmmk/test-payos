@@ -32,6 +32,9 @@ export const orders = sqliteTable("orders", {
   reference: text("reference"), // mã tham chiếu giao dịch ngân hàng (từ webhook)
   counterAccountName: text("counter_account_name"), // tên người chuyển khoản
   note: text("note"), // ghi chú bất thường: sai số tiền / trả tiền sau khi hủy...
+  // IP client đã TẠO đơn (capture lúc POST /api/payments — xem lib/ip.ts). Dùng để
+  // audit/chống lạm dụng "ai tạo đơn này". Nullable: đơn cũ + localhost trực tiếp = NULL.
+  creatorIp: text("creator_ip"),
 });
 
 /**
@@ -47,6 +50,14 @@ export const webhookEvents = sqliteTable("webhook_events", {
   result: text("result").notNull(), // ACTIVATED | ALREADY_PAID | UNKNOWN_ORDER | AMOUNT_MISMATCH | PAID_AFTER_CANCEL | TEST_WEBHOOK | TX_FAILED | INVALID_SIGNATURE | BAD_JSON
   amount: integer("amount"),
   reference: text("reference"),
+  // Toàn bộ body PayOS gửi đến, VERBATIM (chuỗi gốc, không parse lại) — nguồn sự thật để
+  // audit/đối soát/debug/replay. Giữ nguyên cả chữ ký + thứ tự key để verify lại sau này;
+  // các cột phía trên chỉ là bản "promoted" cho query/hiển thị. Nullable: 50 dòng cũ = NULL.
+  rawPayload: text("raw_payload"),
+  // IP đã GỌI webhook (xem lib/ip.ts). LƯU Ý: đây là IP SERVER PayOS (qua cloudflared
+  // = IP gốc PayOS nhờ cf-connecting-ip), KHÔNG phải người dùng cuối → tín hiệu audit/bảo
+  // mật (xác nhận webhook đến từ dải IP mong đợi, phát hiện giả mạo). Nullable: dòng cũ = NULL.
+  callerIp: text("caller_ip"),
 });
 
 export type UserRow = typeof users.$inferSelect;

@@ -5,6 +5,7 @@
  */
 import axios from "axios";
 import type { OrderRow, WebhookEventRow } from "./db/schema";
+import type { IpLookupResult } from "./ip-types";
 import type { PlanId } from "./plans";
 
 export interface AccountResponse {
@@ -48,6 +49,10 @@ export const api = {
 
   getWebhookEvents: async (): Promise<WebhookEventRow[]> =>
     (await http.get<WebhookEventRow[]>("/webhook-events")).data,
+
+  /** Tra cứu địa lý 1 IP (on-demand khi admin bấm icon vị trí). */
+  getIpLookup: async (ip: string): Promise<IpLookupResult> =>
+    (await http.get<IpLookupResult>("/admin/ip-lookup", { params: { ip } })).data,
 };
 
 /** Rút message lỗi dễ đọc từ AxiosError (ưu tiên `error` do API của ta trả về). */

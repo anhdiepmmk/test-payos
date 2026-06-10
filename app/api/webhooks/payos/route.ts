@@ -21,6 +21,7 @@
 import type { WebhookData } from "@payos/node";
 import { nowIso } from "@/lib/datetime";
 import { activateIfPending, addWebhookEvent } from "@/lib/db/queries";
+import { getClientIp } from "@/lib/ip";
 import { logger } from "@/lib/logger";
 import { payos } from "@/lib/payos";
 import { WebhookBody } from "@/lib/schemas";
@@ -35,20 +36,26 @@ function isTestWebhook(data: WebhookData): boolean {
 
 export async function POST(req: Request) {
   const receivedAt = nowIso();
+  // Qua cloudflared → cf-connecting-ip = IP server PayOS thật (xem lib/ip.ts).
+  // Ghi vào MỌI nhánh dưới để audit/đối soát kể cả delivery sai chữ ký.
+  const callerIp = getClientIp(req);
 
   // ── Lớp 0: body phải là JSON đúng shape ──────────────────────────────────
+  // Đọc TEXT thô trước rồi mới JSON.parse — để body sai định dạng vẫn được lưu nguyên văn
+  // vào raw_payload (đây chính là lúc cần soi nhất). rawText cũng được ghi ở mọi nhánh dưới.
+  const rawText = await req.text();
   let raw: unknown;
   try {
-    raw = await req.json();
+    raw = JSON.parse(rawText);
   } catch {
     logger.warn("webhook: body khong phai JSON");
-    addWebhookEvent({ receivedAt, signatureValid: false, result: "BAD_JSON" });
+    addWebhookEvent({ receivedAt, signatureValid: false, result: "BAD_JSON", rawPayload: rawText, callerIp });
     return Response.json({ success: false }, { status: 200 });
   }
   const shape = WebhookBody.safeParse(raw);
   if (!shape.success) {
     logger.warn("webhook: shape body khong dung dinh dang PayOS");
-    addWebhookEvent({ receivedAt, signatureValid: false, result: "BAD_JSON" });
+    addWebhookEvent({ receivedAt, signatureValid: false, result: "BAD_JSON", rawPayload: rawText, callerIp });
     return Response.json({ success: false }, { status: 200 });
   }
 
@@ -63,7 +70,7 @@ export async function POST(req: Request) {
   } catch (err) {
     // Kẻ biết URL nhưng không có checksum key sẽ rơi vào đây.
     logger.error({ err }, "webhook: SAI CHU KY — tu choi xu ly");
-    addWebhookEvent({ receivedAt, signatureValid: false, result: "INVALID_SIGNATURE" });
+    addWebhookEvent({ receivedAt, signatureValid: false, result: "INVALID_SIGNATURE", rawPayload: rawText, callerIp });
     return Response.json({ success: false }, { status: 200 });
   }
 
@@ -75,6 +82,8 @@ export async function POST(req: Request) {
       orderCode: data.orderCode,
       signatureValid: true,
       result: "TEST_WEBHOOK",
+      rawPayload: rawText,
+      callerIp,
     });
     return Response.json({ success: true });
   }
@@ -92,6 +101,8 @@ export async function POST(req: Request) {
       desc: data.desc,
       signatureValid: true,
       result: "TX_FAILED",
+      rawPayload: rawText,
+      callerIp,
     });
     return Response.json({ success: true });
   }
@@ -111,6 +122,8 @@ export async function POST(req: Request) {
     result,
     amount: data.amount,
     reference: data.reference,
+    rawPayload: rawText,
+    callerIp,
   });
 
   const log = result === "ACTIVATED" || result === "ALREADY_PAID" ? "info" : "warn";

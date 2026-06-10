@@ -7,6 +7,7 @@
  */
 import { expiryUnix, nowIso } from "@/lib/datetime";
 import { addOrder } from "@/lib/db/queries";
+import { getClientIp } from "@/lib/ip";
 import { logger } from "@/lib/logger";
 import { payos } from "@/lib/payos";
 import { getPlan } from "@/lib/plans";
@@ -59,6 +60,7 @@ export async function POST(req: Request) {
   const orderCode = generateOrderCode();
   const expiredAt = expiryUnix(15); // PayOS yêu cầu unix GIÂY (Int32) — QR sống 15 phút
   const returnUrl = `${requestOrigin(req)}/`;
+  const creatorIp = getClientIp(req); // ai tạo đơn này (null trên localhost trực tiếp)
 
   try {
     const link = await payos.paymentRequests.create({
@@ -81,6 +83,7 @@ export async function POST(req: Request) {
       expiredAt,
       status: "PENDING",
       createdAt: nowIso(),
+      creatorIp,
     });
 
     logger.info(
