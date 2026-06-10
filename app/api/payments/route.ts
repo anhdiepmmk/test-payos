@@ -19,6 +19,21 @@ function generateOrderCode(): number {
   return Number(`${Date.now()}${random}`);
 }
 
+/**
+ * returnUrl/cancelUrl PHẢI cùng origin với trang đang nhúng iframe:
+ * trang embedded của PayOS đối chiếu `redirect_uri` (lib lấy window.location.origin)
+ * với returnUrl của payment link — lệch origin (vd env ghi :3000 nhưng dev chạy :3002)
+ * là QR báo "Thông tin truyền lên không hợp lệ". Vì vậy ưu tiên header Origin của
+ * chính request trình duyệt; env chỉ là fallback cho caller không phải trình duyệt.
+ */
+function requestOrigin(req: Request): string {
+  return (
+    req.headers.get("origin") ??
+    process.env.NEXT_PUBLIC_BASE_URL ??
+    new URL(req.url).origin
+  );
+}
+
 export async function POST(req: Request) {
   const userId = await getUserId();
   if (!userId) {
@@ -40,7 +55,7 @@ export async function POST(req: Request) {
 
   const orderCode = generateOrderCode();
   const expiredAt = expiryUnix(15); // PayOS yêu cầu unix GIÂY (Int32) — QR sống 15 phút
-  const base = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
+  const base = requestOrigin(req);
 
   try {
     const link = await payos.paymentRequests.create({

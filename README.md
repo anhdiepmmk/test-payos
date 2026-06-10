@@ -150,11 +150,17 @@ const link = await payos.paymentRequests.create({
   orderCode,
   amount: plan.price,
   description: plan.description, // memo chuyển khoản — PayOS giới hạn 9 KÝ TỰ!
-  returnUrl: `${base}/`,         // bắt buộc kể cả khi nhúng embedded
-  cancelUrl: `${base}/`,
+  returnUrl: `${base}/`,         // bắt buộc; base = Origin của request trình duyệt
+  cancelUrl: `${base}/`,         //   (PHẢI cùng origin với trang nhúng iframe — xem ghi chú dưới)
   expiredAt,                     // unix GIÂY (không phải ms!) — dayjs().add(15,"minute").unix()
 });
 ```
+
+> ⚠️ **returnUrl phải CÙNG origin với trang nhúng iframe.** Trang embedded của PayOS đối chiếu
+> `redirect_uri` (lib tự gắn = `window.location.origin`) với `returnUrl` của payment link —
+> lệch là iframe báo *"Thông tin truyền lên không hợp lệ"* thay vì hiện QR. Vì vậy
+> `requestOrigin()` lấy origin từ header `Origin` của chính request (chạy port nào/tunnel nào
+> cũng tự khớp); `NEXT_PUBLIC_BASE_URL` chỉ là fallback cho caller không phải trình duyệt.
 
 Response của PayOS chứa `checkoutUrl` (trang thanh toán), `qrCode` (chuỗi VietQR thô),
 `paymentLinkId`, `accountNumber`… Demo này dùng `checkoutUrl` cho iframe nhúng.
@@ -605,6 +611,7 @@ Mở <http://localhost:3000/admin> (có link "Trang Admin →" ngay trên trang 
 |---|---|
 | Bấm Mua → lỗi "Không tạo được link thanh toán" | Key sai/thiếu trong `.env.local` (nhất là **Checksum Key bị copy thiếu**) → copy lại bằng nút 📋 trên dashboard. Xem message chi tiết trong toast + log pino |
 | QR không hiện (modal trống) | (a) Container iframe thiếu height cố định; (b) cài nhầm package cũ `payos-checkout` thay vì `@payos/payos-checkout` — API khác nhau (`open(true)` vs `embedded: true` + `open()`) |
+| Iframe báo **"Thông tin truyền lên không hợp lệ"** thay vì QR | `returnUrl` của payment link khác origin với trang đang nhúng (vd link tạo với `localhost:3000` nhưng web chạy `localhost:3002`). Đã fix: `requestOrigin()` trong `app/api/payments/route.ts` lấy origin từ header `Origin` của request. Lưu ý: các đơn PENDING tạo TRƯỚC fix vẫn giữ returnUrl cũ → "Tiếp tục thanh toán" vẫn lỗi, hãy Hủy và mua đơn mới |
 | Console error `Element ID:payos-embedded-container not exist` | Gọi `exit()` của lib khi container đã unmount (vd trong cleanup của effect lúc đóng modal). Đã fix bằng `safeExit()` trong `CheckoutModal.tsx` — chỉ gọi `exit()` khi iframe còn gắn trong DOM. Nếu sửa lifecycle modal, giữ nguyên pattern này |
 | Bấm Lưu Webhook Url trên dashboard báo lỗi | App hoặc tunnel **chưa chạy** lúc bấm Lưu (PayOS gửi request kiểm tra ngay và cần 2XX). Chạy `npm run dev` + cloudflared trước; mở URL webhook trên trình duyệt thấy `{ok:true}` rồi hãy Lưu |
 | Thanh toán xong, QR đóng nhưng **gói không kích hoạt** | Webhook không tới server: tunnel chết / Webhook Url cũ (quick tunnel **đổi URL mỗi lần chạy**!) → cập nhật lại ô Webhook Url. Kiểm tra `/admin` webhook log: không có event mới = PayOS không gọi vào được |
