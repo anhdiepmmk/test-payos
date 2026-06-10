@@ -54,8 +54,9 @@ mở rộng thành production. Đọc theo thứ tự mục lục là dễ nhấ
 ### Nguyên tắc vàng (đọc kỹ trước khi sửa code)
 
 1. **Gói CHỈ được kích hoạt ở backend, trong webhook handler, SAU KHI verify chữ ký HMAC.**
-   Hàm `activateIfPending()` trong `lib/db/queries.ts` là nơi DUY NHẤT trong codebase
-   được phép gán gói cho user. Không có đường nào khác.
+   Hàm `activateIfPending()` trong `repositories/orders.repository.ts` là nơi DUY NHẤT
+   trong codebase được phép gán gói cho user (gọi từ `features/webhooks/webhooks.service.ts`
+   sau khi verify). Không có đường nào khác.
 2. **Client không bao giờ được gửi giá tiền.** Frontend chỉ gửi `planId`; server tra giá
    từ `lib/plans.ts`. Ai sửa JS trong DevTools để gửi `amount: 1` cũng vô nghĩa.
 3. **`onSuccess` phía client chỉ là tín hiệu UI** (để đóng QR cho mượt). Nó KHÔNG phải
@@ -277,22 +278,58 @@ useEffect(() => {
 
 ## 3. Cấu trúc thư mục
 
+Toàn bộ mã nguồn nằm trong `src/` (alias `@/*` → `./src/*`). Kiến trúc **feature-based** +
+phân tầng **controller → service → repository**:
+
+- **Controller** (`features/*/*.controller.ts`): CHỈ lo HTTP — đọc body/param, validate
+  (zod), gọi service, map kết quả ra `Response`. Không chứa nghiệp vụ.
+- **Service** (`features/*/*.service.ts`): toàn bộ nghiệp vụ. Gọi repository + hạ tầng
+  (payos, plans, datetime…). KHÔNG bao giờ chạm thẳng `db`/Drizzle.
+- **Repository** (`repositories/*.repository.ts`): NƠI DUY NHẤT chạm Drizzle/`db`,
+  mỗi file một bảng. Chỉ truy cập dữ liệu thuần.
+- **Domain** (`domain/orders.domain.ts`): quy tắc đơn hàng dùng CHUNG nhiều feature
+  (lazy-expiry, kiểm tra sở hữu) — tầng trung lập, không feature nào import lẫn nhau.
+- `app/api/**/route.ts`: **delegator mỏng** — chỉ `export { GET, POST… } from` controller
+  tương ứng (Next.js bắt buộc route handler phải nằm ở đây).
+
+Chiều phụ thuộc (không vòng): `controller → service → domain → repository → lib/db`.
+
+```
+src/
+  app/                          ROUTING — route.ts chỉ là delegator mỏng
+    api/{payments,webhooks,account,admin,webhook-events}/route.ts
+    components/  admin/  page.tsx  layout.tsx  globals.css
+  proxy.ts                      Next 16 middleware (PHẢI nằm trong src/)
+  features/
+    payments/    .controller  .service  .schema  .helpers
+    webhooks/    .controller  .service  .schema
+    account/     .controller  .service
+    admin/       admin-orders | webhook-events | ip-lookup  (.controller + .service)
+  repositories/  orders | users | webhook-events  (.repository.ts)
+  domain/        orders.domain.ts
+  lib/           plans payos db/ datetime logger user ip ip-types api  (hạ tầng dùng chung)
+```
+
 | File | Vai trò — đọc file này khi muốn… |
 |---|---|
 | `lib/plans.ts` | …đổi giá/tên/quyền lợi gói. Nguồn sự thật về GIÁ (server quyết định) |
 | `lib/payos.ts` | …hiểu cách khởi tạo SDK PayOS (singleton, đọc key từ `.env.local`) |
 | `lib/db/schema.ts` | …xem cấu trúc 3 bảng `users` / `orders` / `webhook_events` |
-| `lib/db/queries.ts` | …hiểu nghiệp vụ DB. **`activateIfPending()` = nơi duy nhất kích hoạt gói** |
-| `lib/schemas.ts` | …xem zod validate input gì |
+| `repositories/orders.repository.ts` | …hiểu truy cập DB đơn hàng. **`activateIfPending()` = nơi duy nhất kích hoạt gói** (transaction nguyên tử) |
+| `repositories/{users,webhook-events}.repository.ts` | …truy cập bảng `users` / `webhook_events` |
+| `domain/orders.domain.ts` | …xem lazy-expiry + check sở hữu dùng chung nhiều feature |
+| `features/payments/payments.service.ts` | …hiểu tạo payment link, poll trạng thái, hủy đơn |
+| `features/webhooks/webhooks.service.ts` | …**hiểu webhook — nghiệp vụ quan trọng nhất repo** |
+| `features/account/account.service.ts` | …gói hiện tại + lịch sử đơn của user |
+| `features/admin/*.service.ts` | …số liệu Admin: đơn (`admin-orders`), nhật ký webhook (`webhook-events`), tra cứu IP (`ip-lookup`) |
+| `features/*/*.schema.ts` | …xem zod validate input gì (co-located theo feature) |
+| `features/*/*.controller.ts` | …xem lớp HTTP mỏng: validate input + map sang `Response` |
 | `lib/datetime.ts` | …hiểu quy ước thời gian: lưu UTC, hiển thị UTC+7 (dayjs) |
 | `lib/logger.ts` | …cấu hình pino |
 | `lib/user.ts` + `proxy.ts` | …hiểu danh tính user ẩn danh (cookie `uid`; Next 16 đổi tên middleware thành proxy) |
+| `lib/ip.ts` + `lib/ip-types.ts` | …trích IP client từ headers + kiểu kết quả tra cứu địa lý |
 | `lib/api.ts` | …xem frontend gọi API thế nào (axios instance + hàm typed) |
-| `app/api/payments/route.ts` | …hiểu bước tạo payment link |
-| `app/api/payments/[orderCode]/route.ts` | …hiểu poll trạng thái + hủy đơn (có check sở hữu) |
-| `app/api/webhooks/payos/route.ts` | …**hiểu webhook — file quan trọng nhất repo** |
-| `app/api/account/route.ts` | …API trả gói hiện tại + lịch sử đơn của user |
-| `app/api/admin/orders/route.ts` · `app/api/webhook-events/route.ts` | …API cho trang Admin |
+| `app/api/**/route.ts` | …delegator mỏng; nghiệp vụ thật nằm ở `features/*/*.controller.ts` |
 | `app/components/CheckoutModal.tsx` | …hiểu lifecycle iframe PayOS + máy trạng thái 5 phase |
 | `app/components/PlansDashboard.tsx` | …hiểu luồng UI tổng (TanStack Query) |
 | `app/admin/page.tsx` | …trang Admin theo dõi đơn + webhook |
@@ -419,8 +456,9 @@ vào dashboard. Phụ lục: dùng [ngrok](https://ngrok.com/docs) thay cloudfla
 
 ## 8. Giải phẫu webhook handler
 
-File: `app/api/webhooks/payos/route.ts` — **file quan trọng nhất repo**. Method: **HTTP POST**
-(hàm GET trong file chỉ là probe để tự kiểm tra tunnel, PayOS không bao giờ gọi GET).
+Nghiệp vụ: `features/webhooks/webhooks.service.ts` — **phần quan trọng nhất repo** (route
+`app/api/webhooks/payos/route.ts` chỉ là delegator; controller đọc raw body + IP rồi gọi
+service). Method: **HTTP POST** (hàm GET chỉ là probe tự kiểm tra tunnel, PayOS không gọi GET).
 
 ### Thứ tự xử lý
 
@@ -462,7 +500,7 @@ const data = await payos.webhooks.verify(body); // throw nếu chữ ký sai
 
 ### Idempotency — vì sao webhook gửi trùng vẫn an toàn?
 
-`activateIfPending()` chạy trong **transaction** (`lib/db/queries.ts`): chỉ đơn ở trạng thái
+`activateIfPending()` chạy trong **transaction** (`repositories/orders.repository.ts`): chỉ đơn ở trạng thái
 PENDING mới chuyển được sang PAID, và chuyển đúng một lần. Webhook đến lần 2/3/replay → đơn đã
 PAID → trả `ALREADY_PAID`, không cộng gì thêm. Giả định chuẩn của mọi hệ thống webhook:
 **at-least-once delivery** — server phải tự lo chuyện trùng lặp.
@@ -529,7 +567,7 @@ Demo xử lý **18 tình huống ngoài happy path**. Cột "Nơi xử lý" tr�
 | 11 | **Tạo link thất bại** — key sai, PayOS lỗi, mất mạng | 400 (zod) / 502 kèm message PayOS; toast đỏ, nút phục hồi để thử lại | payments route + UI |
 | 12 | **Request kiểm tra của PayOS** khi bấm Lưu Webhook Url | Nhận diện orderCode 123 / desc "Ma giao dich thu nghiem"/"VQRIO123" → trả 200 ngay (không tra đơn) | webhook route |
 | 13 | **Body webhook không phải JSON / sai shape** | Ghi event `BAD_JSON`, trả 200, không crash | webhook route |
-| 14 | **Race hủy đơn ↔ webhook về cùng lúc** | Transaction + guard theo status: thao tác trước thắng, thao tác sau thành no-op/ghi note — không có trạng thái "rách" | `lib/db/queries.ts` |
+| 14 | **Race hủy đơn ↔ webhook về cùng lúc** | Transaction + guard theo status: thao tác trước thắng, thao tác sau thành no-op/ghi note — không có trạng thái "rách" | `repositories/orders.repository.ts` |
 | 15 | **Nhiều user mua cùng lúc** | orderCode duy nhất toàn cục + mỗi đơn một QR riêng + webhook map orderCode→userId (mục 9) | payments route, `activateIfPending()` |
 | 16 | **Kẻ xấu biết webhook URL, POST payload giả** | Không có Checksum Key → không ký được → rơi vào case #3 | webhook route |
 | 17 | **Kẻ xấu replay payload thật** bắt được từ log/network | Idempotent (case #2) → no-op | `activateIfPending()` |
