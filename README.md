@@ -15,6 +15,8 @@ mở rộng thành production. Đọc theo thứ tự mục lục là dễ nhấ
 
 ## Mục lục
 
+- [Giao diện (screenshots)](#giao-diện)
+
 1. [Kiến trúc tổng quan](#1-kiến-trúc-tổng-quan)
 2. [Luồng thanh toán chi tiết (quan trọng nhất)](#2-luồng-thanh-toán-chi-tiết-quan-trọng-nhất)
 3. [Cấu trúc thư mục](#3-cấu-trúc-thư-mục)
@@ -31,6 +33,32 @@ mở rộng thành production. Đọc theo thứ tự mục lục là dễ nhấ
 14. [Hạn chế & hướng mở rộng](#14-hạn-chế--hướng-mở-rộng)
 15. [Troubleshooting](#15-troubleshooting)
 16. [Tài liệu tham khảo (toàn bộ link hữu ích)](#16-tài-liệu-tham-khảo-toàn-bộ-link-hữu-ích)
+
+---
+
+## Giao diện
+
+Ảnh chụp các màn hình chính của demo (chụp bằng Playwright trên dữ liệu mẫu).
+
+**Trang mua gói — khi chưa có gói:** banner "Bạn chưa có gói nào" và lưới 4 gói VIP / Pro / Max 5x / Max 20x.
+
+![Trang mua gói khi chưa có gói](docs/screenshots/01-home-empty.png)
+
+**Trang mua gói — sau khi đã kích hoạt:** banner "Gói hiện tại" (VIP) và bảng lịch sử giao dịch với badge trạng thái (Thành công / Hết hạn).
+
+![Trang mua gói của user đã có gói VIP và lịch sử giao dịch](docs/screenshots/02-home-active.png)
+
+**Thanh toán — modal VietQR:** bấm "Mua ngay" mở modal nhúng checkout PayOS, hiển thị mã VietQR thật kèm đồng hồ đếm ngược 15 phút. Gói chỉ kích hoạt sau khi server nhận webhook.
+
+![Modal checkout hiển thị mã VietQR của PayOS kèm đồng hồ đếm ngược](docs/screenshots/03-checkout-qr.png)
+
+**Trang Admin — đơn hàng & thống kê:** thẻ thống kê doanh thu + đếm theo trạng thái, và bảng mọi đơn hàng của mọi user (kèm IP / User-Agent người tạo đơn).
+
+![Trang admin: thống kê và bảng mọi đơn hàng](docs/screenshots/04-admin-orders.png)
+
+**Trang Admin — webhook log:** mỗi POST từ PayOS kèm trạng thái chữ ký và kết quả xử lý (ACTIVATED / INVALID_SIGNATURE / TEST_WEBHOOK / BAD_JSON), xem được cả payload JSON.
+
+![Bảng webhook log của trang admin](docs/screenshots/05-admin-webhooks.png)
 
 ---
 
