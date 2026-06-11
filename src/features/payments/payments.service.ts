@@ -41,6 +41,7 @@ export const paymentsService = {
     planId: PlanId;
     origin: string;
     creatorIp: string | null;
+    creatorUserAgent: string | null;
   }): Promise<{ orderCode: number; checkoutUrl: string; returnUrl: string; expiredAt: number }> {
     // planId đã được controller validate qua CreatePaymentBody nên getPlan luôn tìm thấy.
     const plan = getPlan(input.planId)!;
@@ -105,6 +106,7 @@ export const paymentsService = {
       status: "PENDING",
       createdAt: nowIso(),
       creatorIp: input.creatorIp,
+      creatorUserAgent: input.creatorUserAgent,
     });
 
     logger.info(

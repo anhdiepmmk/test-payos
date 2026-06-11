@@ -8,7 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { formatDateTime } from "@/lib/datetime";
 import { formatVnd, getPlan } from "@/lib/plans";
-import IpCell from "./IpCell";
+import SourceCell from "./SourceCell";
 import StatusBadge from "./StatusBadge";
 
 export default function AdminOrdersTable() {
@@ -50,47 +50,46 @@ export default function AdminOrdersTable() {
           <table className="w-full text-sm">
             <thead className="bg-zinc-50 text-left text-xs uppercase text-zinc-500">
               <tr>
-                <th className="px-4 py-3">Tạo lúc (VN)</th>
-                <th className="px-4 py-3">Thanh toán lúc (VN)</th>
-                <th className="px-4 py-3">User</th>
-                <th className="px-4 py-3">IP tạo đơn</th>
+                <th className="px-4 py-3">Trạng thái</th>
                 <th className="px-4 py-3">Gói</th>
                 <th className="px-4 py-3">Số tiền</th>
-                <th className="px-4 py-3">Trạng thái</th>
+                <th className="px-4 py-3">User</th>
+                <th className="px-4 py-3">Tạo lúc (VN)</th>
+                <th className="px-4 py-3">Thanh toán lúc (VN)</th>
                 <th className="px-4 py-3">Người chuyển</th>
                 <th className="px-4 py-3">Ref NH</th>
+                <th className="px-4 py-3">Nguồn tạo đơn</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100">
               {(data?.orders ?? []).map((order) => (
                 <tr key={order.orderCode} className="align-top">
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    {formatDateTime(order.createdAt)}
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    {formatDateTime(order.paidAt)}
-                  </td>
-                  <td
-                    className="px-4 py-3 font-mono text-xs"
-                    title={order.userId}
-                  >
-                    {order.userId.slice(0, 8)}…
-                  </td>
-                  <td className="px-4 py-3">
-                    <IpCell ip={order.creatorIp} />
-                  </td>
-                  <td className="px-4 py-3 font-medium">
-                    {getPlan(order.planId)?.name ?? order.planId}
-                  </td>
-                  <td className="px-4 py-3">{formatVnd(order.amount)}</td>
                   <td className="px-4 py-3">
                     <StatusBadge status={order.status} />
                     {order.note && (
                       <p className="mt-1 max-w-60 text-xs text-amber-600">⚠️ {order.note}</p>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-xs">{order.counterAccountName ?? "—"}</td>
+                  <td className="px-4 py-3 font-medium whitespace-nowrap">
+                    {getPlan(order.planId)?.name ?? order.planId}
+                  </td>
+                  <td className="px-4 py-3">{formatVnd(order.amount)}</td>
+                  <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">
+                    {order.userId}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    {formatDateTime(order.createdAt)}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    {formatDateTime(order.paidAt)}
+                  </td>
+                  <td className="px-4 py-3 text-xs whitespace-nowrap">
+                    {order.counterAccountName ?? "—"}
+                  </td>
                   <td className="px-4 py-3 font-mono text-xs">{order.reference ?? "—"}</td>
+                  <td className="px-4 py-3">
+                    <SourceCell ip={order.creatorIp} userAgent={order.creatorUserAgent} />
+                  </td>
                 </tr>
               ))}
               {(data?.orders ?? []).length === 0 && (

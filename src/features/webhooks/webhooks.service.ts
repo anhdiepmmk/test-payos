@@ -18,7 +18,11 @@ import { eventsRepo } from "@/repositories/webhook-events.repository";
 import { WebhookBody, isTestWebhook } from "./webhooks.schema";
 
 export const webhooksService = {
-  async processWebhook(rawText: string, callerIp: string | null): Promise<{ success: boolean }> {
+  async processWebhook(
+    rawText: string,
+    callerIp: string | null,
+    callerUserAgent: string | null,
+  ): Promise<{ success: boolean }> {
     const receivedAt = nowIso();
 
     // ── Lớp 0: body phải là JSON đúng shape (lưu nguyên văn rawText ở mọi nhánh) ──
@@ -27,13 +31,13 @@ export const webhooksService = {
       raw = JSON.parse(rawText);
     } catch {
       logger.warn("webhook: body khong phai JSON");
-      eventsRepo.insert({ receivedAt, signatureValid: false, result: "BAD_JSON", rawPayload: rawText, callerIp });
+      eventsRepo.insert({ receivedAt, signatureValid: false, result: "BAD_JSON", rawPayload: rawText, callerIp, callerUserAgent });
       return { success: false };
     }
     const shape = WebhookBody.safeParse(raw);
     if (!shape.success) {
       logger.warn("webhook: shape body khong dung dinh dang PayOS");
-      eventsRepo.insert({ receivedAt, signatureValid: false, result: "BAD_JSON", rawPayload: rawText, callerIp });
+      eventsRepo.insert({ receivedAt, signatureValid: false, result: "BAD_JSON", rawPayload: rawText, callerIp, callerUserAgent });
       return { success: false };
     }
 
@@ -43,21 +47,21 @@ export const webhooksService = {
       data = await payos.webhooks.verify(shape.data as Parameters<typeof payos.webhooks.verify>[0]);
     } catch (err) {
       logger.error({ err }, "webhook: SAI CHU KY — tu choi xu ly");
-      eventsRepo.insert({ receivedAt, signatureValid: false, result: "INVALID_SIGNATURE", rawPayload: rawText, callerIp });
+      eventsRepo.insert({ receivedAt, signatureValid: false, result: "INVALID_SIGNATURE", rawPayload: rawText, callerIp, callerUserAgent });
       return { success: false };
     }
 
     // ── Request kiểm tra của PayOS (khi bấm Lưu Webhook Url) → chỉ cần 200 ──
     if (isTestWebhook(data)) {
       logger.info({ orderCode: data.orderCode }, "webhook: nhan request kiem tra cua PayOS");
-      eventsRepo.insert({ receivedAt, orderCode: data.orderCode, signatureValid: true, result: "TEST_WEBHOOK", rawPayload: rawText, callerIp });
+      eventsRepo.insert({ receivedAt, orderCode: data.orderCode, signatureValid: true, result: "TEST_WEBHOOK", rawPayload: rawText, callerIp, callerUserAgent });
       return { success: true };
     }
 
     // ── Giao dịch không thành công phía PayOS → ghi nhận, không kích hoạt ──
     if (data.code !== "00") {
       logger.warn({ orderCode: data.orderCode, code: data.code, desc: data.desc }, "webhook: giao dich KHONG thanh cong");
-      eventsRepo.insert({ receivedAt, orderCode: data.orderCode, code: data.code, desc: data.desc, signatureValid: true, result: "TX_FAILED", rawPayload: rawText, callerIp });
+      eventsRepo.insert({ receivedAt, orderCode: data.orderCode, code: data.code, desc: data.desc, signatureValid: true, result: "TX_FAILED", rawPayload: rawText, callerIp, callerUserAgent });
       return { success: true };
     }
 
@@ -78,6 +82,7 @@ export const webhooksService = {
       reference: data.reference,
       rawPayload: rawText,
       callerIp,
+      callerUserAgent,
     });
 
     const log = result === "ACTIVATED" || result === "ALREADY_PAID" ? "info" : "warn";

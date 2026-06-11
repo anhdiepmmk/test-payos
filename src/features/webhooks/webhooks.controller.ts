@@ -12,8 +12,9 @@ import { webhooksService } from "./webhooks.service";
 export async function POST(req: Request) {
   // callerIp + rawText lấy trước khi parse — qua cloudflared, cf-connecting-ip = IP server PayOS.
   const callerIp = getClientIp(req);
+  const callerUserAgent = req.headers.get("user-agent");
   const rawText = await req.text();
-  const { success } = await webhooksService.processWebhook(rawText, callerIp);
+  const { success } = await webhooksService.processWebhook(rawText, callerIp, callerUserAgent);
   return Response.json({ success }, { status: 200 });
 }
 

@@ -13,7 +13,7 @@ export default function StatusBadge({ status }: { status: OrderStatus }) {
   const style = STYLE[status] ?? STYLE.PENDING;
   return (
     <span
-      className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${style.className}`}
+      className={`inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ${style.className}`}
     >
       {style.label}
     </span>

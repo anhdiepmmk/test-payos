@@ -46,8 +46,10 @@ export default function IpCell({ ip }: { ip: string | null }) {
   if (!ip) return <span className="text-zinc-400">—</span>;
 
   return (
-    <div ref={ref} className="relative inline-block">
-      <span className="font-mono text-xs">{ip}</span>
+    <div ref={ref} className="relative inline-block whitespace-nowrap">
+      <span className="font-mono text-xs align-middle" title={ip}>
+        {ip}
+      </span>
       <button
         type="button"
         onClick={toggle}
@@ -73,6 +75,9 @@ export default function IpCell({ ip }: { ip: string | null }) {
 
       {open && (
         <div className="absolute left-0 z-20 mt-1 w-56 rounded-lg border border-zinc-200 bg-white p-3 text-left text-xs shadow-lg">
+          <p className="mb-2 break-all border-b border-zinc-100 pb-2 font-mono text-zinc-600">
+            {ip}
+          </p>
           {isLoading && <p className="text-zinc-500">Đang tra cứu…</p>}
           {isError && <p className="text-red-600">Lỗi tra cứu — thử lại sau.</p>}
           {data?.kind === "private" && (

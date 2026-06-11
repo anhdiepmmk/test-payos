@@ -10,7 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { formatDateTime } from "@/lib/datetime";
 import { formatVnd } from "@/lib/plans";
-import IpCell from "./IpCell";
+import SourceCell from "./SourceCell";
 
 const RESULT_STYLE: Record<string, string> = {
   ACTIVATED: "bg-emerald-100 text-emerald-700",
@@ -58,8 +58,8 @@ export default function AdminWebhookLog() {
               <tr>
                 <th className="px-4 py-3">Nhận lúc (VN)</th>
                 <th className="px-4 py-3">Mã đơn</th>
-                <th className="px-4 py-3" title="IP gọi webhook — là server PayOS/Cloudflare (qua tunnel), KHÔNG phải người dùng cuối">
-                  IP gọi
+                <th className="px-4 py-3" title="Nguồn gọi webhook — là server PayOS/Cloudflare (qua tunnel), KHÔNG phải người dùng cuối">
+                  Nguồn gọi
                 </th>
                 <th className="px-4 py-3">Chữ ký</th>
                 <th className="px-4 py-3">Kết quả xử lý</th>
@@ -79,7 +79,7 @@ export default function AdminWebhookLog() {
                       {event.orderCode ?? "—"}
                     </td>
                     <td className="px-4 py-3">
-                      <IpCell ip={event.callerIp} />
+                      <SourceCell ip={event.callerIp} userAgent={event.callerUserAgent} />
                     </td>
                     <td className="px-4 py-3">
                       {event.signatureValid ? (
@@ -90,7 +90,7 @@ export default function AdminWebhookLog() {
                     </td>
                     <td className="px-4 py-3">
                       <span
-                        className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                        className={`inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ${
                           RESULT_STYLE[event.result] ?? "bg-zinc-200 text-zinc-600"
                         }`}
                       >

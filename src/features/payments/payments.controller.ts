@@ -55,6 +55,7 @@ export async function POST(req: Request) {
       planId: parsed.data.planId,
       origin: requestOrigin(req), // cần Request → tính ở controller
       creatorIp: ip,
+      creatorUserAgent: req.headers.get("user-agent"),
     });
     return Response.json(result);
   } catch (err) {

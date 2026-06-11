@@ -35,6 +35,9 @@ export const orders = sqliteTable("orders", {
   // IP client đã TẠO đơn (capture lúc POST /api/payments — xem lib/ip.ts). Dùng để
   // audit/chống lạm dụng "ai tạo đơn này". Nullable: đơn cũ + localhost trực tiếp = NULL.
   creatorIp: text("creator_ip"),
+  // User-Agent của client lúc TẠO đơn (header "user-agent"). Cặp với creatorIp để audit
+  // "thiết bị/trình duyệt nào tạo đơn". Nullable: đơn cũ + client không gửi UA = NULL.
+  creatorUserAgent: text("creator_user_agent"),
 });
 
 /**
@@ -58,6 +61,9 @@ export const webhookEvents = sqliteTable("webhook_events", {
   // = IP gốc PayOS nhờ cf-connecting-ip), KHÔNG phải người dùng cuối → tín hiệu audit/bảo
   // mật (xác nhận webhook đến từ dải IP mong đợi, phát hiện giả mạo). Nullable: dòng cũ = NULL.
   callerIp: text("caller_ip"),
+  // User-Agent của bên GỌI webhook (header "user-agent") — là client PayOS (vd: axios/...),
+  // KHÔNG phải người dùng cuối. Tín hiệu audit phụ cạnh callerIp. Nullable: dòng cũ = NULL.
+  callerUserAgent: text("caller_user_agent"),
 });
 
 export type UserRow = typeof users.$inferSelect;
