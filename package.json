@@ -1,6 +1,6 @@
 {
   "name": "test-payos",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "scripts": {
     "predev": "npm run db:push && npm run db:seed",
