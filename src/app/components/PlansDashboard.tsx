@@ -9,8 +9,8 @@
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useState } from "react";
-import { api, extractErrorMessage } from "@/lib/api";
+import { useEffect, useState } from "react";
+import { api, extractErrorMessage, extractRetryAfterSec } from "@/lib/api";
 import type { OrderRow } from "@/lib/db/schema";
 import { PLANS, getPlan, type PlanId } from "@/lib/plans";
 import CheckoutModal from "./CheckoutModal";
@@ -37,8 +37,23 @@ export default function PlansDashboard() {
   const queryClient = useQueryClient();
   const [pending, setPending] = useState<PendingCheckout | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
+  // Số giây còn phải chờ trước khi mua lại sau khi dính 429 (rate-limit của ta HOẶC của PayOS).
+  const [cooldownSec, setCooldownSec] = useState(0);
 
   const account = useQuery({ queryKey: ["account"], queryFn: api.getAccount });
+
+  // Đếm lùi mỗi giây; interval chỉ được dựng/gỡ theo trạng thái còn-cooldown hay không
+  // (không phụ thuộc giá trị giây → không reset timer mỗi lần tick).
+  const inCooldown = cooldownSec > 0;
+  useEffect(() => {
+    if (!inCooldown) return;
+    const id = setInterval(() => setCooldownSec((s) => Math.max(0, s - 1)), 1_000);
+    return () => clearInterval(id);
+  }, [inCooldown]);
+
+  const cooldownLabel = inCooldown
+    ? `Thử lại sau ${Math.floor(cooldownSec / 60)}:${(cooldownSec % 60).toString().padStart(2, "0")}`
+    : null;
 
   function showToast(type: Toast["type"], message: string) {
     setToast({ type, message });
@@ -64,7 +79,12 @@ export default function PlansDashboard() {
       });
       refreshAccount(); // đơn PENDING mới hiện ngay trong lịch sử
     },
-    onError: (err) => showToast("error", extractErrorMessage(err)),
+    onError: (err) => {
+      // 429 (rate-limit) → bật đếm ngược theo Retry-After để user không bấm lại dính tiếp.
+      const retryAfter = extractRetryAfterSec(err);
+      if (retryAfter !== null) setCooldownSec(retryAfter);
+      showToast("error", extractErrorMessage(err));
+    },
   });
 
   const cancelOrder = useMutation({
@@ -72,8 +92,8 @@ export default function PlansDashboard() {
     onSettled: refreshAccount,
   });
 
-  // Chặn double-click/mua chồng đơn: đang tạo link hoặc đang mở modal thì khóa mọi nút Mua.
-  const buying = createPayment.isPending || pending !== null;
+  // Chặn double-click/mua chồng đơn: đang tạo link, đang mở modal, hoặc đang trong cooldown 429.
+  const buying = createPayment.isPending || pending !== null || cooldownSec > 0;
 
   /** Mở lại modal cho đơn PENDING còn hạn ("Tiếp tục thanh toán"). */
   function resumeOrder(order: OrderRow) {
@@ -122,6 +142,7 @@ export default function PlansDashboard() {
             isCurrent={account.data?.currentPlan === plan.id}
             creating={createPayment.isPending && createPayment.variables === plan.id}
             disabled={buying}
+            cooldownLabel={cooldownLabel}
             onBuy={() => createPayment.mutate(plan.id)}
           />
         ))}

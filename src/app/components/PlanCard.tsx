@@ -10,10 +10,12 @@ interface Props {
   creating: boolean;
   /** Khóa mọi nút khi đang có giao dịch dở (chặn double-click/mua chồng đơn) */
   disabled: boolean;
+  /** Đang trong thời gian chờ sau 429 (rate-limit) — nhãn đếm ngược "Thử lại sau m:ss". */
+  cooldownLabel?: string | null;
   onBuy: () => void;
 }
 
-export default function PlanCard({ plan, isCurrent, creating, disabled, onBuy }: Props) {
+export default function PlanCard({ plan, isCurrent, creating, disabled, cooldownLabel, onBuy }: Props) {
   return (
     <div
       className={`relative flex flex-col rounded-2xl border bg-white p-5 shadow-sm ${
@@ -52,7 +54,11 @@ export default function PlanCard({ plan, isCurrent, creating, disabled, onBuy }:
               : "bg-zinc-900 text-white hover:bg-zinc-700 disabled:opacity-50"
         }`}
       >
-        {isCurrent ? "Gói hiện tại ✓" : creating ? "Đang tạo link…" : "Mua ngay"}
+        {isCurrent
+          ? "Gói hiện tại ✓"
+          : creating
+            ? "Đang tạo link…"
+            : (cooldownLabel ?? "Mua ngay")}
       </button>
     </div>
   );

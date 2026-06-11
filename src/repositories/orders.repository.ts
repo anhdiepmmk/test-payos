@@ -8,11 +8,11 @@
  * (idempotency chống webhook gửi trùng + race "hủy ↔ webhook về"), nên giữ nguyên ở
  * tầng repository thay vì xé nhỏ ra service.
  */
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, lt, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { orders, users, type NewOrder, type OrderRow } from "@/lib/db/schema";
 import type { PlanId } from "@/lib/plans";
-import { nowIso } from "@/lib/datetime";
+import { nowIso, nowUnix } from "@/lib/datetime";
 
 export type ActivateResult =
   | "ACTIVATED" // kích hoạt thành công (lần đầu tiên và duy nhất)
@@ -32,6 +32,29 @@ export const ordersRepo = {
   },
 
   /**
+   * Tìm đơn PENDING CÒN SỐNG (chưa quá expiredAt) của đúng user + đúng plan, mới nhất trước.
+   * Dùng để TÁI DÙNG link thay vì tạo đơn mới: cùng plan ⇒ cùng amount/description nên link
+   * PayOS cũ vẫn hợp lệ nguyên vẹn (PayOS không cho update link). Tránh gọi create thừa
+   * (đỡ chạm rate-limit 429 của PayOS) + đỡ phình DB khi user double-click.
+   * Điều kiện expiredAt > now để KHÔNG tái dùng link QR đã hết 15 phút.
+   */
+  findReusablePending(userId: string, planId: PlanId): OrderRow | undefined {
+    return db
+      .select()
+      .from(orders)
+      .where(
+        and(
+          eq(orders.userId, userId),
+          eq(orders.planId, planId),
+          eq(orders.status, "PENDING"),
+          gt(orders.expiredAt, nowUnix()),
+        ),
+      )
+      .orderBy(desc(orders.orderCode))
+      .get();
+  },
+
+  /**
    * UPDATE PENDING→EXPIRED, chốt điều kiện status=PENDING ngay trong câu lệnh để
    * không ghi đè nếu webhook vừa kích hoạt cùng lúc. Trả về true nếu có dòng đổi.
    */
@@ -42,6 +65,21 @@ export const ordersRepo = {
       .where(and(eq(orders.orderCode, orderCode), eq(orders.status, "PENDING")))
       .run();
     return result.changes > 0;
+  },
+
+  /**
+   * Quét HÀNG LOẠT: mọi đơn PENDING đã quá expiredAt → EXPIRED. Trả số dòng đổi.
+   * Khác applyLazyExpiry (chỉ lật đơn CÓ NGƯỜI ĐỌC tới): hàm này dọn cả đơn "rác" mà
+   * không ai poll (vd đơn spam bị bỏ giữa chừng). Gọi nhân tiện lúc đọc list (admin/account)
+   * để không cần cron. Chốt status='PENDING' trong câu UPDATE để không đè webhook vừa kích hoạt.
+   */
+  expireAllStale(): number {
+    const result = db
+      .update(orders)
+      .set({ status: "EXPIRED" })
+      .where(and(eq(orders.status, "PENDING"), lt(orders.expiredAt, nowUnix())))
+      .run();
+    return result.changes;
   },
 
   /** Hủy đơn — chỉ khi còn PENDING/EXPIRED (đơn đã PAID không hủy được). */

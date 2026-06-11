@@ -26,10 +26,11 @@ mở rộng thành production. Đọc theo thứ tự mục lục là dễ nhấ
 9. [Multi-user: vì sao giao dịch không lẫn nhau](#9-multi-user-vì-sao-giao-dịch-không-lẫn-nhau)
 10. [Edge cases & cách xử lý](#10-edge-cases--cách-xử-lý)
 11. [Bảo mật — Q&A](#11-bảo-mật--qa)
-12. [Trang Admin](#12-trang-admin)
-13. [Hạn chế & hướng mở rộng](#13-hạn-chế--hướng-mở-rộng)
-14. [Troubleshooting](#14-troubleshooting)
-15. [Tài liệu tham khảo (toàn bộ link hữu ích)](#15-tài-liệu-tham-khảo-toàn-bộ-link-hữu-ích)
+12. [PayOS: phí, quota & chống lạm dụng tạo đơn](#12-payos-phí-quota--chống-lạm-dụng-tạo-đơn)
+13. [Trang Admin](#13-trang-admin)
+14. [Hạn chế & hướng mở rộng](#14-hạn-chế--hướng-mở-rộng)
+15. [Troubleshooting](#15-troubleshooting)
+16. [Tài liệu tham khảo (toàn bộ link hữu ích)](#16-tài-liệu-tham-khảo-toàn-bộ-link-hữu-ích)
 
 ---
 
@@ -380,7 +381,7 @@ src/
    ngân hàng nhận tiền.
 2. Vào kênh → **Thông tin kênh** lấy 3 khóa: **Client ID**, **API Key**, **Checksum Key**.
    Dùng nút copy 📋 trên dashboard — **đừng gõ tay/chép từ ảnh chụp màn hình, Checksum Key dài
-   64 ký tự rất dễ bị thiếu** (thiếu là lỗi chữ ký, xem [Troubleshooting](#14-troubleshooting)).
+   64 ký tự rất dễ bị thiếu** (thiếu là lỗi chữ ký, xem [Troubleshooting](#15-troubleshooting)).
 3. ⚠️ **PayOS KHÔNG có môi trường sandbox.** Mọi QR quét ra là **tiền thật** chuyển vào tài
    khoản nhận của kênh. Vì vậy demo để giá gói rẻ nhất 10.000đ — test bằng gói VIP.
 
@@ -627,7 +628,64 @@ mở trình duyệt kiểm tra tunnel, PayOS không gọi GET.)
 
 ---
 
-## 12. Trang Admin
+## 12. PayOS: phí, quota & chống lạm dụng tạo đơn
+
+> **TL;DR cho dev mới:** PayOS **không miễn phí hoàn toàn** — họ bán "gói thu hộ" theo số
+> giao dịch. NHƯNG **chỉ đơn ĐÃ THANH TOÁN thành công mới trừ quota**; đơn PENDING/EXPIRED/
+> CANCELLED không tính. Vì vậy spam tạo đơn **không đốt được quota** của bạn — rủi ro thật chỉ
+> là **dính rate-limit 429 của PayOS + phình DB**. Đó là lý do repo có rate-limit theo IP +
+> tái dùng đơn + lazy-sweep (mục 12.4).
+
+### 12.1 Mô hình tính phí (PayOS thu tiền thế nào)
+
+PayOS kiếm tiền bằng **gói thu hộ** tính theo *số giao dịch thành công*, KHÔNG phải dịch vụ free vô điều kiện.
+
+**Gói miễn phí (tier free)** — đủ cho demo này:
+
+| Gói | Số giao dịch | Điều kiện |
+|---|---|---|
+| FREE-100 | 100 | mọi ngân hàng, **nhận 1 lần** |
+| PIONEER-500 | 500 | mọi ngân hàng, **nhận 1 lần** |
+| OCB-1000 / KLB-1000 | 1.000 | **lặp lại miễn phí**, nhưng **chỉ khi tài khoản nhận thuộc bank cụ thể** (OCB / Kiên Long) |
+
+**Gói trả phí** — khi vượt tier free / không dùng bank ưu đãi. Hai kiểu **loại trừ nhau, KHÔNG cộng dồn**:
+
+- **Gói cố định**: bó 1.000 / 5.000 / 20.000 / 100.000 giao dịch, **phí phẳng, không phụ thuộc giá trị đơn** → hợp đơn giá trị cao.
+- **Gói Flex**: phí = **% giá trị giao dịch** → hợp đơn giá trị thấp.
+
+> ⚠️ KHÔNG có chuyện "vừa mua gói vừa bị trừ % mỗi giao dịch" — **gói chính là cách tính phí**, chọn 1 trong 2 kiểu.
+>
+> 💲 **Số tiền VND cụ thể không công khai** (PayOS giấu giá) → xem nút **"Mua gói"** trong dashboard <https://my.payos.vn> hoặc liên hệ sales.
+
+### 12.2 Quota tính theo đơn ĐÃ THANH TOÁN (đã xác nhận với support)
+
+Cảnh báo email ở **80%** và **95%**; **hết 100%** gói → PayOS **khoá tính năng tạo đơn** cho tới khi có gói mới.
+
+Quan trọng: **chỉ đơn `PAID` + xác nhận thành công mới trừ vào gói.** Đơn `PENDING` chưa trả tiền, đơn `EXPIRED`, đơn `CANCELLED` → **không tính**. (Xác nhận trực tiếp với support PayOS; dashboard FREE-100 hiển thị 2/100 dù đã tạo nhiều đơn test chưa thanh toán.)
+
+→ Hệ quả bảo mật: **spam tạo đơn PENDING KHÔNG đốt được quota, không khoá được khách thật mua hàng.** Đây không phải lỗ hổng kiểu "wallet-DoS".
+
+### 12.3 Rate-limit của PayOS (mã 429)
+
+Endpoint tạo link có rate-limit, trả **HTTP 429 ("Too Many Request — Gọi API quá nhiều")** — nhưng **PayOS không công bố con số** (bao nhiêu req/giây). Gọi `paymentRequests.create` quá nhanh (vd bị spam) có thể dính 429; lúc đó **khách thật cũng tạo đơn lỗi**.
+
+### 12.4 Các lớp chống lạm dụng trong repo này
+
+| Lớp | File | Chống cái gì |
+|---|---|---|
+| **Rate-limit theo IP** (5 đơn / 60s / IP) | `lib/rate-limit.ts` + `payments.controller.ts` | Giữ tần suất `create` dưới ngưỡng 429 của PayOS. Khoá theo `cf-connecting-ip` chứ KHÔNG theo `uid` (uid do `proxy.ts` tự phát cho mọi visitor → giả mạo/xoay vòng được). IP loopback/private (vd `::1`, `127.0.0.1` — localhost dev) thì bỏ qua để không chặn dev. |
+| **Tái dùng đơn PENDING** cùng user+plan | `payments.service.ts` (`findReusablePending`) | Double-click / thử lại cùng plan → trả lại link cũ, **0 lần gọi `create` mới**. Link PayOS bất biến (SDK không có API update) nên cùng plan ⇒ link cũ vẫn đúng. |
+| **Lazy-sweep PENDING quá hạn** | `orders.repository.ts` (`expireAllStale`), gọi ở admin/account service | Dọn đơn PENDING quá `expiredAt` → EXPIRED, kể cả đơn "rác" không ai poll, nên DB không phình vô hạn. Không cần cron. |
+
+Khi dính rate-limit, server trả **HTTP 429** kèm header `Retry-After` — cả với giới hạn của ta (`payments.controller.ts`) lẫn khi PayOS ném `TooManyRequestError` (`payments.service.ts` map sang `PaymentRateLimitError`). **Không auto-retry** (retry khi đang bị limit chỉ làm tệ hơn). Đơn **chưa được `insert`** khi PayOS 429 (insert nằm sau lời gọi PayOS) → không để lại đơn PENDING mồ côi.
+
+Phía frontend (`PlansDashboard.tsx`): 429 vào `onError` của mutation → hiện toast + **đọc `Retry-After` để khoá nút Mua kèm đếm ngược "Thử lại sau m:ss"**, tự bật lại khi hết giờ. Modal KHÔNG mở (chỉ mở ở `onSuccess`) nên không có QR rỗng/iframe vỡ — UX mượt, user không bấm lại để dính 429 lần nữa.
+
+> **Rác link trên PayOS thì sao?** Mỗi `create` tạo một link thật trên tài khoản PayOS, nhưng link **tự hết hạn sau 15 phút** (theo `expiredAt`) và **tốn 0đ + 0 quota** (chưa thanh toán) → thuần thẩm mỹ trong dashboard. **Không chủ động huỷ** (huỷ = thêm lời gọi API = thêm rủi ro 429, đổi lấy lợi ích = 0).
+
+---
+
+## 13. Trang Admin
 
 Mở <http://localhost:3000/admin> (có link "Trang Admin →" ngay trên trang chính):
 
@@ -642,7 +700,7 @@ Mở <http://localhost:3000/admin> (có link "Trang Admin →" ngay trên trang 
 
 ---
 
-## 13. Hạn chế & hướng mở rộng
+## 14. Hạn chế & hướng mở rộng
 
 | Hiện tại (demo) | Hướng production |
 |---|---|
@@ -656,7 +714,7 @@ Mở <http://localhost:3000/admin> (có link "Trang Admin →" ngay trên trang 
 
 ---
 
-## 14. Troubleshooting
+## 15. Troubleshooting
 
 | Triệu chứng | Nguyên nhân thường gặp → cách xử lý |
 |---|---|
@@ -677,7 +735,7 @@ Mở <http://localhost:3000/admin> (có link "Trang Admin →" ngay trên trang 
 
 ---
 
-## 15. Tài liệu tham khảo (toàn bộ link hữu ích)
+## 16. Tài liệu tham khảo (toàn bộ link hữu ích)
 
 ### Tài liệu chính thức PayOS
 
@@ -688,7 +746,9 @@ Mở <http://localhost:3000/admin> (có link "Trang Admin →" ngay trên trang 
 | <https://payos.vn/docs/du-lieu-tra-ve/webhook/> | Cấu trúc payload webhook + yêu cầu trả 2XX |
 | <https://payos.vn/docs/tich-hop-webhook/kiem-tra-du-lieu-voi-signature/> | Cách PayOS tính chữ ký (HMAC-SHA256, sort key) — nền tảng của mục 8 & 11 |
 | <https://payos.vn/docs/sample/> | Danh sách toàn bộ sample chính chủ mọi ngôn ngữ |
-| <https://my.payos.vn> | Dashboard: tạo kênh, lấy 3 khóa, cấu hình **Webhook Url** |
+| <https://my.payos.vn> | Dashboard: tạo kênh, lấy 3 khóa, cấu hình **Webhook Url**, xem/**Mua gói** (giá VND) |
+| <https://payos.vn/thong-bao-han-che-tinh-nang-tao-don/> | Chính sách khoá tạo đơn khi hết gói (cảnh báo 80%/95%, mục 12.2) |
+| <https://payos.vn/cong-thanh-toan-mien-phi-2026/> | Gói miễn phí 2026 & cấu trúc tier free (mục 12.1) |
 
 ### Mã nguồn chính chủ payOS (GitHub)
 

@@ -63,3 +63,15 @@ export function extractErrorMessage(err: unknown): string {
   }
   return err instanceof Error ? err.message : "Lỗi không xác định";
 }
+
+/**
+ * Số giây cần chờ trước khi thử lại, đọc từ header `Retry-After` của response 429
+ * (cả rate-limit của ta lẫn 429 từ PayOS đều gửi header này). Trả null nếu không phải 429
+ * hoặc không có header hợp lệ → caller cứ xử như lỗi thường.
+ */
+export function extractRetryAfterSec(err: unknown): number | null {
+  if (!axios.isAxiosError(err) || err.response?.status !== 429) return null;
+  const raw = err.response.headers?.["retry-after"];
+  const sec = Number(raw);
+  return Number.isFinite(sec) && sec > 0 ? Math.ceil(sec) : null;
+}

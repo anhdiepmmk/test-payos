@@ -7,6 +7,8 @@ import { usersRepo } from "@/repositories/users.repository";
 
 export const accountService = {
   getAccount(userId: string) {
+    // Dọn hàng loạt đơn PENDING quá hạn trước khi liệt kê (lazy-sweep, không cần cron).
+    ordersRepo.expireAllStale();
     // Auto-tạo user lần đầu ghé (quyết định nghiệp vụ — repo chỉ ghi thuần).
     let user = usersRepo.findById(userId);
     if (!user) {
