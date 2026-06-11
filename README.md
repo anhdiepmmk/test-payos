@@ -361,6 +361,12 @@ src/
 - File DB: `data/app.db` — **đã gitignore**, không bao giờ commit dữ liệu.
 - Schema sync bằng `drizzle-kit push`, **tự chạy** trước `npm run dev` / `npm run build`
   (script `predev`/`prebuild`) — clone repo về là chạy được, không cần nhớ lệnh migrate.
+- **Seed dữ liệu demo:** vì `data/` không commit, clone về DB sẽ rỗng. `predev` còn chạy
+  `npm run db:seed` để nạp sẵn dữ liệu mẫu (6 users, 19 đơn, 11 webhook) → mở app là có nội
+  dung ngay. Seed **chỉ chạy khi bảng `orders` trống** nên không bao giờ đè dữ liệu thật.
+  Nạp tay: `npm run db:seed`; nạp lại từ đầu (xóa sạch rồi seed): `npm run db:seed -- --force`.
+  Dữ liệu mẫu **đã làm sạch** thông tin nhạy cảm (tên/số TK/reference/IP/signature đều là giá
+  trị giả) — xem chi tiết trong `scripts/seed.mjs`.
 - Quy ước thời gian: cột `*_at` lưu **ISO UTC**; `expired_at` lưu **unix giây** (khớp PayOS).
   Khi hiển thị mới đổi sang giờ Việt Nam qua `formatDateTime()` (dayjs + `Asia/Ho_Chi_Minh`).
 - Muốn đổi sang Postgres/MySQL: chỉ cần sửa `lib/db/index.ts` (driver) + `drizzle.config.ts`,
@@ -382,9 +388,13 @@ src/
 
 ## 6. Cài đặt & chạy
 
-Yêu cầu: **Node.js ≥ 20** (SDK `@payos/node` v2 yêu cầu).
+Yêu cầu: **Node.js ≥ 20** (SDK `@payos/node` v2 yêu cầu). Repo có sẵn `.nvmrc` ghim
+**Node 24.15.0** — dùng `nvm use` để khớp phiên bản đã kiểm thử.
 
 ```bash
+# 0. (tùy chọn) khớp Node version theo .nvmrc
+nvm use
+
 # 1. Cài dependencies
 npm install
 

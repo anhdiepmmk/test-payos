@@ -1,15 +1,16 @@
 {
   "name": "test-payos",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
-    "predev": "npm run db:push",
+    "predev": "npm run db:push && npm run db:seed",
     "dev": "next dev",
     "prebuild": "npm run db:push",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "db:push": "node -e \"require('fs').mkdirSync('data',{recursive:true})\" && drizzle-kit push",
+    "db:seed": "node scripts/seed.mjs",
     "register-webhook": "node --env-file=.env.local scripts/register-webhook.mjs"
   },
   "dependencies": {
